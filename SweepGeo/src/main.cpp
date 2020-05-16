@@ -1,8 +1,3 @@
-// #define MOTO
-// #define CAR
-#define SWEEP
-// #define VELOVOLT
-#define GEORED
   #include "LowPower.h"
   #include "PinChangeInterrupt.h"
   #define intPin 8
@@ -42,8 +37,10 @@
   uint16_t ReStartCounter=0;
   bool onOff = true;
   unsigned long unixTimeInt = 0;
-  uint16_t SizeRec = 51; //=sizeSend -imei=66-15
-  uint16_t sizeSend=66;
+
+  uint16_t SizeRec = 163;
+  // uint16_t SizeRec = 51; //=sizeSend -imei=66-15
+  // uint16_t sizeSend=66;
   bool wakeUp=true;
   bool OkToSend = true;
   uint16_t maxTime = 0;
@@ -73,6 +70,7 @@
   void badCharChecker(String data);
   void tine(void);
   void httpPostMaster();
+  void getWriteFromFram(uint16_t p1, uint16_t p2);
   void httpPing();
   bool httpPostFromTo(uint16_t p1, uint16_t p2);
   void getWriteFromFramFromZero(uint16_t p1, uint16_t p2);
@@ -123,25 +121,7 @@
   void setup() {
     delay(100);
     fram.begin();
-#ifdef CAR
-      pinMode(A2, OUTPUT);//VIO
-      pinMode(1, OUTPUT);//SS TX
-      pinMode(A0, OUTPUT);//sim Reset
-      pinMode(A3, INPUT);//sim Power Status
-      pinMode(0, INPUT);//SS RX
-      digitalWrite(A2, HIGH);
-      digitalWrite(A0, HIGH);
-#endif
-#ifdef MOTO
-    pinMode(3, OUTPUT);//VIO
-    pinMode(A3, INPUT);//sim Power Status
-    pinMode(0, INPUT);//SS RX
-    pinMode(1, OUTPUT);//SS TX
-    pinMode(6, OUTPUT);//sim Reset
-    digitalWrite(6, HIGH);
-    digitalWrite(3, HIGH);
-#endif
-#ifdef SWEEP
+
   pinMode(8, OUTPUT);//VIO
   pinMode(A3, INPUT);//sim Power Status
   pinMode(A0, OUTPUT);//LED
@@ -151,18 +131,14 @@
   digitalWrite(6, HIGH);
   digitalWrite(A0, LOW);
   digitalWrite(8, HIGH);
-  #ifdef SWEEP
-    digitalWrite(A0,HIGH);
-  #endif 
-#endif
-    powerDown();
-    powerUp();
-    Serial.begin(4800);
-    turnOnGns();
-    while (getGsmStat() != 1) {
-      delay(500);
-    }
-    while (!gps());
+  powerDown();
+  powerUp();
+  Serial.begin(4800);
+  turnOnGns();
+  while (getGsmStat() != 1) {
+    delay(500);
+  }
+  while (!gps());
 }
 
 void loop() {
@@ -179,9 +155,7 @@ void loop() {
       }else if (started){if (FirstStartCounter == 1) {resetSS();}else{delay(60000);FirstStartCounter++;}
       }else if((!restarted)&&(!started)){if (gpsFailCounter == 10) {resetSS();}else {delay(1000);gpsFailCounter++;}}
     }else{
-      #ifdef SWEEP
       if (batteryLevel().toInt()<24){blinkLEDFast(15);}else{blinkLED(1);}
-      #endif
       t1=t2;
       if(((t2 - t3) >= (te-15))){t3=t2; 
         gprsOn();httpPing();getGpsData();
@@ -263,42 +237,46 @@ bool httpPostFromTo(uint16_t p1, uint16_t p2) {
     bool OkToSend = true;
     if (sendAtFram(3000, 31254, 11, "OK", "ERROR", 5)) { //"AT+HTTPINIT"
       if (sendAtFram(3000, 31267, 19, "OK", "ERROR", 5)) { //"AT+HTTPPARA=\"CID\",1"
-        if (sendAtFram(5000, 31609, 73, "OK", "ERROR", 5)) { //URL VELOVOLT
+        if (sendAtFram(5000, 31286, 67, "OK", "ERROR", 5)) { //URL GEORED
           Serial.setTimeout(10000);
           flushSim();
           Serial.print("AT+HTTPDATA=");
           delay(100);
-          //uint16_t p2 = getCounter();
-          // uint16_t Size = (p2 * (SizeRec + 1)) + (p2 * 8) - 1 + 2;
-          uint16_t Size = ((p2-p1) * (sizeSend + 1)) + ((p2-p1) * 8) - 1 + 2;
+          uint16_t Size = ((p2-p1) * (SizeRec)) + 40 + 140;
           Serial.print(Size);
           Serial.print(",");
           uint32_t maxTime = 30000;
           Serial.println(maxTime);
           Serial.findUntil("DOWNLOAD", "ERROR");
-          Serial.print("[");
+/////////////////////////////////////////////////////////////////////
+          for(int i=0;i<140;i++){
+            uint8_t test = fram.read8(i+31405);
+            char Buffer[2] = {0};
+            sprintf(Buffer, "%c", test);
+            Serial.write(Buffer);
+            delay(1);
+          }  
+/////////////////////////////////////////////////////////////////////
           for (uint16_t i = p1; i < p2 ; i++)
           {
             for (uint16_t j = SizeRec * i; j < (SizeRec * (i + 1)) ; j++)
             {
-              if (j == (i * SizeRec)) {
-                Serial.print("{\"P\":\"");
-                sendFromFram(31474, 15);   //imei
-                delay(1);
-              }
+              // sendFromFram(31474, 15);   //imei
               uint16_t test = fram.read8(j);
               sprintf(Buffer, "%c", test);
               Serial.write(Buffer);
               delay(1);
             }
-            Serial.print("\"}");
-            delay(1);
-            if (i < p2 - 1) {
-              Serial.write(",");
-              delay(1);
-            }
           }
-          Serial.print("]");
+/////////////////////////////////////////////////////////////////////          
+          for(int i=0;i<40;i++){
+            uint8_t test = fram.read8(i+31545);
+            char Buffer[2] = {0};
+            sprintf(Buffer, "%c", test);
+            Serial.write(Buffer);
+            delay(1);
+          }
+/////////////////////////////////////////////////////////////////////
           Serial.findUntil("OK", "OK");
         } else OkToSend = false;
       } else OkToSend = false;
@@ -725,50 +703,38 @@ void clearMemoryDebug(uint16_t size) {
     fram.write8(a, "0");
   }
 }
+void getWriteFromFram(uint16_t p1, uint16_t p2){
+  for (uint16_t a = p1; a < p1+p2; a++)
+  {
+    uint8_t test = fram.read8(a);
+    char Buffer[2] = {0};
+    sprintf(Buffer, "%c", test);
+  writeDataFram(Buffer);
+  }
+}
 void insertMem() {
   framWritePosition = getCounter() * SizeRec;
-  //getWriteFromFram(31041,13); //"<Track Imei=\""
+  getWriteFromFram(31041,13); //"<Track Imei=\""        //13
   // char* ourImei=imei.c_str();
-  // writeDataFram(ourImei);                    //15
-  //getWriteFromFram(31054,26); //"\" Fc=\"WGS84\" FixPosition=\""
-  writeDataFramDebug("9",32767);
-  writeDataFram(fixStatus.c_str());                 //1
-  //getWriteFromFram(31080,7); //"\" Lat=\""
-  writeDataFram(latitude.c_str());                  //10
-  //getWriteFromFram(31087,7); //"\" Lon=\""
-  writeDataFram(longitude.c_str());                 //11
-  //getWriteFromFram(31094,7); //"\" Vit=\""
-  writeDataFram(speed.c_str());                   //6
-  //getWriteFromFram(31101,7); //"\" Sat=\""
-  writeDataFram(used_satellites.c_str());             //2
-  //getWriteFromFram(31108,7); //"\" Cap=\""
-  writeDataFram(course.c_str());                  //6
-  //getWriteFromFram(31115,16); //"\" BatteryLevel=\""
-  writeDataFramDebug("8",32766);
-  writeDataFram(batteryLevel().c_str());              //3
-  //getWriteFromFram(31131,6); //"\" Dh=\""
-  writeDataFram(lastUnixTime.c_str());                  //10
-  //getWriteFromFram(31137,3); //"\"/>"
-  
-  #ifndef MOTO
-  writeDataFram("00");
-  #endif
-
-  #ifdef MOTO
-  Wire.requestFrom(8, 4);
-  byte lb1; byte hb1; byte lb2; byte hb2;
-  while (Wire.available()){lb1=Wire.read();hb1=Wire.read();lb2=Wire.read();hb2=Wire.read();received=true;}
-  if(received){
-    char str1[3];sprintf(str1, "%d", word(hb1,lb1));
-    char str2[3];sprintf(str2, "%d", word(hb2,lb2));
-    writeDataFram(str1);
-    writeDataFram(str2);
-    received=false;
-  }else {writeDataFram("00");}
-  Wire.beginTransmission(8);
-  Wire.write('r');
-  Wire.endTransmission();
-  #endif
+  // writeDataFram(ourImei);  
+  writeDataFram("869170031686497");                     //15
+  getWriteFromFram(31054,26); //"\" Fc=\"WGS84\" FixPosition=\""  //26
+  writeDataFram(fixStatus.c_str());                     //1
+  getWriteFromFram(31080,7); //"\" Lat=\""              //7
+  writeDataFram(latitude.c_str());                      //10
+  getWriteFromFram(31087,7); //"\" Lon=\""              //7
+  writeDataFram(longitude.c_str());                     //11
+  getWriteFromFram(31094,7); //"\" Vit=\""              //7
+  writeDataFram(speed.c_str());                         //6
+  getWriteFromFram(31101,7); //"\" Sat=\""              //7
+  writeDataFram(used_satellites.c_str());               //2
+  getWriteFromFram(31108,7); //"\" Cap=\""              //7
+  writeDataFram(course.c_str());                        //6
+  getWriteFromFram(31115,16); //"\" BatteryLevel=\""    //16
+  writeDataFram(batteryLevel().c_str());                //3
+  getWriteFromFram(31131,6); //"\" Dh=\""               //6
+  writeDataFram(gpsTime.c_str());                  //10
+  getWriteFromFram(31137,3); //"\"/>"                   //3
   incrementCounter();
   if((getCounter()%limitToSend)==0){writeDataFramDebug("1",(32079+(getCounter()/limitToSend)));}
 }
@@ -885,14 +851,10 @@ bool fireHttpAction(long timeout, char* Commande, char* Rep, char* Error) {
   if(Serial.findUntil(Rep, Error)){
     // sendAtFram(2000, 31241, 11, "OK", "ERROR", 5); // httpterm
     ping =false;
-    #ifdef SWEEP
     blinkLED(2);
-    #endif
     return true;
   } else{
-    #ifdef SWEEP
     blinkLED(4);
-    #endif
     ping = true;
     return false;
     }
