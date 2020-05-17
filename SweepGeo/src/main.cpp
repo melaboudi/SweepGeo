@@ -717,7 +717,8 @@ void insertMem() {
   getWriteFromFram(31041,13); //"<Track Imei=\""        //13
   // char* ourImei=imei.c_str();
   // writeDataFram(ourImei);  
-  writeDataFram("869170031686497");                     //15
+  // writeDataFram("869170031856991");                     //15
+  getWriteFromFram(31474,15); //IMEI                    //15
   getWriteFromFram(31054,26); //"\" Fc=\"WGS84\" FixPosition=\""  //26
   writeDataFram(fixStatus.c_str());                     //1
   getWriteFromFram(31080,7); //"\" Lat=\""              //7
