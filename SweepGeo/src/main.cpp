@@ -143,7 +143,7 @@
 
 void loop() {
   
-  if(getCounter()>480){clearMemory(31999);clearMemoryDebug(32003);resetSS();
+  if(getCounter()>100){clearMemory(30999);clearMemoryDebug(32003);resetSS();
   for (uint16_t i = 0; i<(getCounter()/limitToSend); i++){if(getBatchCounter(i)==1){writeDataFramDebug("0",(32080+i));}}}
   
   updateGpsTime();
@@ -160,7 +160,7 @@ void loop() {
       if(((t2 - t3) >= (te-15))){t3=t2; 
         gprsOn();httpPing();getGpsData();
         if(!ping){
-          if ((getCounter()%limitToSend)!=0) { 
+          if ((getCounter()%limitToSend)!=0) { //not a complete batch
             uint16_t batchCounter=getCounter()/limitToSend;
             uint16_t startingPoint=batchCounter*limitToSend;
             if(httpPostFromTo(startingPoint,getCounter())){
@@ -171,10 +171,10 @@ void loop() {
               if(getBatchCounter(i)==1){found=true;}
             }if(!found){clearMemoryDebug(32003);}
             }
-          }else{                     //if we have collected a complete batch, send it
+          }else{         //if we have collected a complete batch, send it
             uint16_t batchCounter=getCounter()/limitToSend-1;
             uint16_t startingPoint=batchCounter*limitToSend;
-            if(getBatchCounter(batchCounter)==1){
+            if(getBatchCounter(batchCounter)==1){///////////////////
               if(httpPostFromTo((batchCounter)*limitToSend,((batchCounter+1)*limitToSend))){
               writeDataFramDebug("0",(32080+batchCounter));
               clearMemoryDiff(startingPoint*SizeRec,getCounter()*SizeRec); 
@@ -189,7 +189,7 @@ void loop() {
         }gprsOff();
       }
     }
-  }else if(((t2 - t1) <= (ti/3))&&(getCounter()>=limitToSend)&&((t2 - t3) < (te-40))) {                          
+  }else if(((t2 - t1) <= (ti/2))&&(getCounter()>=limitToSend)&&((t2 - t3) < (te-40))) {                          
       gprsOn();getGpsData(); 
       httpTimeout=20000;httpPostMaster();httpTimeout=8000;
       t3=t2;t1=t2;
@@ -213,12 +213,14 @@ void httpPostMaster(){
         }
       }
     }
-    if ((getCounter()%limitToSend)!=0) { 
+    if ((getCounter()%limitToSend)!=0) {
       uint16_t batchCounter=getCounter()/limitToSend;
       uint16_t startingPoint=batchCounter*limitToSend;
-      if(httpPostFromTo(startingPoint,getCounter())){httpPostFromTo(startingPoint,getCounter());}
-      clearMemoryDiff(startingPoint*SizeRec,getCounter()*SizeRec); 
-      if(batchCompleted){clearMemoryDebug(32003);}
+      if(httpPostFromTo(startingPoint,getCounter())){
+        clearMemoryDiff(startingPoint*SizeRec,getCounter()*SizeRec); 
+        decrementCounter(getCounter()%limitToSend);
+        if(batchCompleted){clearMemoryDebug(32003);}
+      }
     }
   }
 }
