@@ -302,15 +302,13 @@ void httpPing() {
         flushSim();
         Serial.print("AT+HTTPDATA=");
         delay(100);
-        uint16_t Size = 11;
+        uint16_t Size = 2;
         Serial.print(Size);
         Serial.print(",");
         uint32_t maxTime = 30000;
         Serial.println(maxTime);
         Serial.findUntil("DOWNLOAD", "ERROR");
-        Serial.print("[{\"S\":\"");
-        // Serial.print(imei.c_str());
-        Serial.print("1\"}]");
+        Serial.print("vv");
         Serial.findUntil("OK", "OK");
       } else OkToSend = false;
     } else OkToSend = false;
