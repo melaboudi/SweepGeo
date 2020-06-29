@@ -32,6 +32,14 @@
     uint16_t gpsFailCounter = 0;
     bool started = true;
     bool restarted = false;
+    bool startUp=true;
+    bool notAbleToSend=false;
+    bool noGsm=false;
+    bool noGPRS=false;
+    bool noGPS=false;
+    bool noPing=false;
+    bool noPost=false;
+    bool LEDIsOn=false;
     uint16_t httpActionFail = 0;
     uint16_t FirstStartCounter = 0;
     uint16_t ReStartCounter=0;
@@ -58,6 +66,7 @@
     //6  29----5points 8.5secondsSent
     //6  25----4Points 8secondsSend
     int badCharCounter=0;
+    uint8_t noGsmCounter=0;
     // uint16_t httpTimeout=8000;  //voiture 07 06/05/2020 from 9am to 10am ¬OK
     uint16_t httpTimeout=20000;  //voiture 07
     uint64_t lastSend =0;
@@ -92,6 +101,7 @@
     void powerDown();
     void blinkLED(int k);
     void blinkLEDFast(int k);
+    void blinkLEDFastStartUp(int k);
     void clearMemory(uint16_t size);
     void clearMemoryDiff(uint16_t size, uint16_t size1);
     void clearMemoryDebug(uint16_t size);
@@ -109,7 +119,7 @@
     bool gps();
     void sendFromFram(uint16_t start,uint16_t length);
     void updateGpsTime();
-
+    void blinkLEDLong(int k);
     int limitToSend =20;
     unsigned long te =580; //le temps entre les envoies
     unsigned long t1 = 0; //le temps du dernier point inséré
@@ -129,8 +139,9 @@
     pinMode(1, OUTPUT);//SS TX
     pinMode(6, OUTPUT);//sim Reset
     digitalWrite(6, HIGH);
-    digitalWrite(A0, LOW);
-    // digitalWrite(A0, HIGH);
+    // digitalWrite(A0, LOW);
+    digitalWrite(A0, HIGH);
+    LEDIsOn=true;
     digitalWrite(8, HIGH);
     powerDown();
     powerUp();
@@ -143,14 +154,35 @@
   }
 
   void loop() {
-    //test 2.0
+    if(!noPost&&!noGPRS&&!noGsm&&!noPing&&!startUp&&!noGPS){
+      digitalWrite(A0,LOW);LEDIsOn=false;
+      }else{digitalWrite(A0,HIGH);LEDIsOn=true;}
+      
 
+    if (startUp){if (batteryLevel().toInt()<20){blinkLEDFastStartUp(2000);}}
+    
+    if (getGsmStat() != 1) { 
+      
+      noGsm=true;noGsmCounter++;
+      
+      if(!LEDIsOn){digitalWrite(A0,HIGH);LEDIsOn=true;}
+      
+      if (noGsmCounter==2)
+        {
+          noGsmCounter=0;
+          powerDown();
+          powerUp();
+          Serial.begin(4800);
+          turnOnGns();
+          delay(20000);
+          if (getGsmStat() == 1) {noGsm=false;while (!gps());}
+        }
 
-
-    //asdf
+    }else{noGsm=false;}
+    
     if(getCounter()>100){clearMemory(30999);clearMemoryDebug(32003);resetSS();
     for (uint16_t i = 0; i<(getCounter()/limitToSend); i++){if(getBatchCounter(i)==1){writeDataFramDebug("0",(32080+i));}}}
-    
+
     updateGpsTime();
     
     if((t2 - t1) >= (ti)){
@@ -160,7 +192,7 @@
         }else if (started){if (FirstStartCounter == 1) {resetSS();}else{delay(60000);FirstStartCounter++;}
         }else if((!restarted)&&(!started)){if (gpsFailCounter == 10) {resetSS();}else {delay(1000);gpsFailCounter++;}}
       }else{
-        if (batteryLevel().toInt()<24){blinkLEDFast(15);}else{blinkLED(1);}
+        if (batteryLevel().toInt()<24){blinkLEDFast(15);}else{blinkLED(1);}      
         t1=t2;
         if(((t2 - t3) >= (te-15))){t3=t2; 
           gprsOn();httpPing();getGpsData();
@@ -175,7 +207,9 @@
               for (uint16_t i = 0; i<(getCounter()/limitToSend); i++){
                 if(getBatchCounter(i)==1){found=true;}
               }if(!found){clearMemoryDebug(32003);}
-              }
+              startUp=false;
+              digitalWrite(A0,LOW);LEDIsOn=false;
+              }              
             }else{         //if we have collected a complete batch, send it
               uint16_t batchCounter=getCounter()/limitToSend-1;
               uint16_t startingPoint=batchCounter*limitToSend;
@@ -187,16 +221,21 @@
                 found =false;
                 for (uint16_t i = 0; i<(getCounter()/limitToSend); i++){
                   if(getBatchCounter(i)==1){found=true;}
-                }if(!found){clearMemoryDebug(32003);}
+                }
+                if(!found){clearMemoryDebug(32003);}
+                startUp=false;
+                digitalWrite(A0,LOW);LEDIsOn=false;
                 }
               }
             }
-          }gprsOff();
+          }
+          gprsOff();
         }
       }
     }else if(((t2 - t1) <= (ti/2))&&(getCounter()>=limitToSend)&&((t2 - t3) < (te-40))) {                          
         gprsOn();getGpsData(); 
-        httpTimeout=20000;httpPostMaster();httpTimeout=8000;
+        httpPostMaster();
+        // httpTimeout=20000;httpPostMaster();httpTimeout=8000;
         t3=t2;t1=t2;
         getGpsData();gprsOff();
     }
@@ -211,6 +250,8 @@
             writeDataFramDebug("0",(32080+i));
             clearMemoryDiff((i)*limitToSend*SizeRec,((i+1)*limitToSend*SizeRec));
             getGpsData();
+            startUp=false;
+            digitalWrite(A0,LOW);LEDIsOn=false;
           }else{
             batchCompleted=false;
             getGpsData();
@@ -225,6 +266,8 @@
           clearMemoryDiff(startingPoint*SizeRec,getCounter()*SizeRec); 
           decrementCounter(getCounter()%limitToSend);
           if(batchCompleted){clearMemoryDebug(32003);}
+          startUp=false;
+          digitalWrite(A0,LOW);LEDIsOn=false;
         }
       }
     }
@@ -289,10 +332,26 @@
         } else OkToSend = false;
       } else OkToSend = false;
       if (OkToSend) {
-        if (fireHttpAction(httpTimeout, "AT+HTTPACTION=", ",200,", "ERROR")) 
-        {sendAtFram(5000, 31241, 11, "OK", "ERROR", 5);return true;} 
-          else 
-          {sendAtFram(5000, 31241, 11, "OK", "ERROR", 5);return false;}
+        if (fireHttpAction(httpTimeout, "AT+HTTPACTION=", ",200,", "ERROR")) {
+          startUp=false;
+          sendAtFram(5000, 31241, 11, "OK", "ERROR", 5);blinkLED(2);
+          noPost=false; 
+          return true;
+        }else {
+          noPost=true; 
+          sendAtFram(5000, 31241, 11, "OK", "ERROR", 5);
+          if((getCounter()>42)){
+            if (LEDIsOn)
+            { digitalWrite(A0,LOW);delay(500);
+              digitalWrite(A0,HIGH);delay(250);
+              digitalWrite(A0,LOW);delay(500);
+              digitalWrite(A0,HIGH);delay(250);
+              digitalWrite(A0,LOW);delay(500);
+              digitalWrite(A0,HIGH);
+            }else{digitalWrite(A0,HIGH);LEDIsOn=true;}
+          } else{blinkLED(8);}
+          return false;
+        }
       }
     }else{return false;}  
   }
@@ -319,7 +378,18 @@
       } else OkToSend = false;
     } else OkToSend = false;
     if (OkToSend) {
-      fireHttpAction(3500, "AT+HTTPACTION=", ",200,", "ERROR");
+      if (fireHttpAction(3500, "AT+HTTPACTION=", ",200,", "ERROR")){
+        noPing=false;
+        blinkLED(2);
+      }else{
+        noPing=true;
+        if (LEDIsOn)
+        { digitalWrite(A0,LOW);delay(1000);
+          digitalWrite(A0,HIGH);delay(1000);
+          digitalWrite(A0,LOW);delay(1000);
+          digitalWrite(A0,HIGH);
+        }else{digitalWrite(A0,HIGH);LEDIsOn=true;}
+      }
       sendAtFram(5000, 31241, 11, "OK", "ERROR", 5); //httpterm
     }
   }
@@ -504,12 +574,17 @@
     if (onOff) {
       onOff = false;}
     if ((fixStatus.toInt() == 1) && (latitude.toInt() > 20) && (longitude.toInt() < 0)&&(badCharCounter==0)&&(lastUnixTime!=previousUnixTime)) {
+      noGPS=false;
       previousUnixTime=lastUnixTime;
       started = false;
       restarted=false;
       insertMem();
       return true;
-    } else {return false;badCharCounter=0;}  
+    } else {
+      noGPS=true;
+      if (LEDIsOn){digitalWrite(A0,LOW);delay(600);digitalWrite(A0,HIGH);
+      }else{digitalWrite(A0,HIGH);LEDIsOn=true;}
+    return false;badCharCounter=0;}  
   }
   void updateGpsTime() {
     fixStatus = gpsTime = latitude = longitude = used_satellites = viewed_satellites = speed = " ";
@@ -608,16 +683,18 @@
     } else sprintf(charRSSI, "-0%d", p);
     return String(charRSSI);
   }
+  
   bool gprsOn() {
     sendAtFram(5000, 31140, 9, "OK", "ERROR", 5); //"AT+CFUN=1"
     sendAtFram(5000, 31184, 29, "OK", "OK", 5); //"AT+SAPBR=3,1,\"CONTYPE\",\"GPRS\""
     if (sendAtFram(5000, 31213, 12, "OK", "OK", 5)) { //"AT+SAPBR=1,1"
       if (sendAtFram(5000, 31225, 8, "OK", "ERROR", 5)) { //"AT+CIICR"
         if (sendAtFram(5000, 31233, 8, ">", "ERROR", 5)) { //"AT+CIFSR"
+          noGPRS=false;
           return true;
-        } else return false;
-      } else return false;
-    } else return false;
+        } else {noGPRS=true; digitalWrite(A0, HIGH);LEDIsOn=true; return false;}
+      } else {noGPRS=true; digitalWrite(A0, HIGH);LEDIsOn=true; return false;}
+    } else {noGPRS=true; digitalWrite(A0, HIGH);LEDIsOn=true; return false;}
   }
   void gprsOff() {
     //if(getGprsState())
@@ -677,18 +754,46 @@
     }
   }
   void blinkLED(int k) {
-    for (int i = 0; i < k; i++) {
-      digitalWrite(A0, HIGH);   // turn the LED on (HIGH is the voltage level)
-      delay(100);                       // wait for a second
-      digitalWrite(A0, LOW);    // turn the LED off by making the voltage LOW
-      delay(100);
+    if (!startUp&&!noGPRS&&!noGPS&&!noGsm&&!noPost&&!noPing)
+    {
+        for (int i = 0; i < k; i++) {
+        digitalWrite(A0, HIGH);   // turn the LED on (HIGH is the voltage level)
+        delay(150);                       // wait for a second
+        digitalWrite(A0, LOW);    // turn the LED off by making the voltage LOW
+        delay(150);
+      }
+    }
+  }
+  void blinkLEDLong(int k) {
+    if (!startUp&&!noGPRS&&!noGPS&&!noGsm&&!noPost&&!noPing)
+    {
+        for (int i = 0; i < k; i++) {
+        digitalWrite(A0, HIGH);   // turn the LED on (HIGH is the voltage level)
+        delay(1000);                       // wait for a second
+        digitalWrite(A0, LOW);    // turn the LED off by making the voltage LOW
+        LEDIsOn=false;
+        delay(200);
+      }
     }
   }
   void blinkLEDFast(int k) {
+    if (!startUp&&!noGPRS&&!noGPS&&!noGsm&&!noPost&&!noPing)
+    {
+      for (int i = 0; i < k; i++) {
+        digitalWrite(A0, HIGH);   // turn the LED on (HIGH is the voltage level)
+        delay(30);                       // wait for a second
+        digitalWrite(A0, LOW);    // turn the LED off by making the voltage LOW
+        LEDIsOn=false;
+        delay(30);
+      }
+    }
+  }
+  void blinkLEDFastStartUp(int k) {
     for (int i = 0; i < k; i++) {
       digitalWrite(A0, HIGH);   // turn the LED on (HIGH is the voltage level)
       delay(20);                       // wait for a second
       digitalWrite(A0, LOW);    // turn the LED off by making the voltage LOW
+      LEDIsOn=false;
       delay(20);
     }
   }
@@ -859,13 +964,12 @@
     if(Serial.findUntil(Rep, Error)){
       // sendAtFram(2000, 31241, 11, "OK", "ERROR", 5); // httpterm
       ping =false;
-      blinkLED(2);
+      // blinkLED(2);
       return true;
     } else{
-      blinkLED(8);
+      // blinkLED(4);
       ping = true;
       return false;
       }
     Serial.setTimeout(1000);
   }
-
