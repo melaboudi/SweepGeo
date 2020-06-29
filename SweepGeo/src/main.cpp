@@ -144,6 +144,10 @@
 
   void loop() {
     //test 2.0
+
+
+
+    //asdf
     if(getCounter()>100){clearMemory(30999);clearMemoryDebug(32003);resetSS();
     for (uint16_t i = 0; i<(getCounter()/limitToSend); i++){if(getBatchCounter(i)==1){writeDataFramDebug("0",(32080+i));}}}
     
