@@ -153,7 +153,7 @@
     while (!gps());
   }
 
-  void loop() {
+  void () {
     if(!noPost&&!noGPRS&&!noGsm&&!noPing&&!startUp&&!noGPS){
       digitalWrite(A0,LOW);LEDIsOn=false;
       }else{digitalWrite(A0,HIGH);LEDIsOn=true;}
