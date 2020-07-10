@@ -147,7 +147,7 @@
     powerUp();
     Serial.begin(4800);
     turnOnGns();
-    while (getGsmStat() != 1) {
+    while ((getGsmStat() != 1)&&(getGsmStat() != 5) ){
       delay(500);
     }
     while (!gps());
@@ -161,7 +161,7 @@
 
     if (startUp){if (batteryLevel().toInt()<20){blinkLEDFastStartUp(2000);}}
     
-    if (getGsmStat() != 1) { 
+    if ((getGsmStat() != 1)&&(getGsmStat() != 5)) { 
       
       noGsm=true;noGsmCounter++;
       
@@ -175,7 +175,7 @@
           Serial.begin(4800);
           turnOnGns();
           delay(20000);
-          if (getGsmStat() == 1) {noGsm=false;while (!gps());}
+          if ((getGsmStat() == 1)||(getGsmStat() == 5)) {noGsm=false;while (!gps());}
         }
 
     }else{noGsm=false;}
@@ -898,7 +898,7 @@
   void resetSS() {
     cfunReset();
     turnOnGns();
-    while (getGsmStat() != 1) {
+    while ((getGsmStat() != 1)&&(getGsmStat() != 5)) {
       delay(500);
     }
     gprsOn();
