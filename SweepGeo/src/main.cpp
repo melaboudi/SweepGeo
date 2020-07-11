@@ -811,7 +811,7 @@
   }
   void clearMemoryDebug(uint16_t size) {
     for (uint16_t a = 32000; a < size; a++) {
-      fram.write8(a, "0");
+    fram.write8(a, "0");
     }
   }
   void getWriteFromFram(uint16_t p1, uint16_t p2){
