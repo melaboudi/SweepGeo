@@ -127,7 +127,7 @@
   unsigned long t2 = 0; //le temps du dernier point capté
   uint16_t ti = 30; //le temps entre chaque insertion
   unsigned long t3 = 0; //le temps du dernier envoie
-  String previousUnixTime="";
+  String previousUnixTime="0";
   uint16_t iterations=880; //sleeping time = iterations X 8 Seconds
   void setup() {
     delay(100);
@@ -486,9 +486,6 @@ bool getGpsData() {
   Serial.println("AT+CGNSINF");
   Serial.readBytesUntil('O', gpsData, 119);
   String gpsdatastr = String(gpsData);
-  writeDataFram(gpsdatastr.c_str());
-  digitalWrite(A0,LOW);
-  while(1);
 
   uint8_t ind1 = gpsdatastr.indexOf(',');
   //  String mode = gpsdatastr.substring(0, ind1);
