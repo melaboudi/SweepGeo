@@ -132,7 +132,6 @@
   void setup() {
     delay(100);
     fram.begin();
-
   pinMode(8, OUTPUT);//VIO
   pinMode(A3, INPUT);//sim Power Status
   pinMode(A0, OUTPUT);//LED
@@ -933,7 +932,7 @@ void resetSS() {
 void cfunReset(){
   sendAtFram(6000, 31741, 9, "OK", "ERROR", 1);  //CFUN=0
   sendAtFram(6000, 31140, 9, "OK", "ERROR", 1);  //CFUN=1
-}
+} 
 bool sendAtFram(long timeout, uint16_t pos1, uint16_t pos2, char* Rep, char* Error, int nbRep) {
   flushSim();
   Serial.setTimeout(timeout);
